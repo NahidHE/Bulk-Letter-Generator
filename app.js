@@ -19,8 +19,163 @@ let currentTemplateName = "";
 let uploadedTemplateCounter = 0;
 let csvRows = [];
 let currentPdfBlob = null;
+let letterEditor = null;
+let markupModeDefined = false;
+
+function defineMarkupEditorMode() {
+  if (markupModeDefined || typeof window.CodeMirror === "undefined") {
+    return;
+  }
+
+  window.CodeMirror.defineMode("markupEditor", function () {
+    return {
+      token(stream) {
+        if (stream.peek() === "[") {
+          let token = "";
+          token += stream.next();
+
+          if (stream.peek() === "/") {
+            token += stream.next();
+          } else if (stream.peek() === "$") {
+            token += stream.next();
+            while (!stream.eol() && stream.peek() !== "]") {
+              token += stream.next();
+            }
+            if (stream.peek() === "]") {
+              token += stream.next();
+            }
+            return "markup-variable";
+          }
+
+          while (!stream.eol() && stream.peek() !== "]") {
+            token += stream.next();
+          }
+
+          if (stream.peek() === "]") {
+            token += stream.next();
+          }
+
+          return "markup-tag";
+        }
+
+        while (!stream.eol() && stream.peek() !== "[") {
+          stream.next();
+        }
+
+        return null;
+      },
+    };
+  });
+
+  markupModeDefined = true;
+}
+
+function getLetterTextarea() {
+  return document.getElementById("letter");
+}
+
+function getLetterEditorValue() {
+  if (letterEditor) {
+    return letterEditor.getValue();
+  }
+
+  const textarea = getLetterTextarea();
+  return textarea ? textarea.value : "";
+}
+
+function setLetterEditorValue(value) {
+  const nextValue = String(value || "");
+
+  if (letterEditor) {
+    if (letterEditor.getValue() !== nextValue) {
+      letterEditor.setValue(nextValue);
+    }
+    return;
+  }
+
+  const textarea = getLetterTextarea();
+  if (textarea) {
+    textarea.value = nextValue;
+  }
+}
+
+function focusLetterEditor() {
+  if (letterEditor) {
+    letterEditor.focus();
+    return;
+  }
+
+  const textarea = getLetterTextarea();
+  if (textarea) {
+    textarea.focus();
+  }
+}
+
+function wrapSelectionWithMarkup(openTag, closeTag) {
+  if (letterEditor) {
+    const selection = letterEditor.getSelection();
+
+    if (!selection) {
+      const cursor = letterEditor.getCursor();
+      letterEditor.replaceRange(
+        `${openTag}${closeTag}`,
+        cursor,
+        cursor,
+        "+input",
+      );
+      letterEditor.setCursor({
+        line: cursor.line,
+        ch: cursor.ch + openTag.length,
+      });
+      focusLetterEditor();
+      return;
+    }
+
+    const from = letterEditor.getCursor("from");
+    const to = letterEditor.getCursor("to");
+    letterEditor.replaceRange(
+      `${openTag}${selection}${closeTag}`,
+      from,
+      to,
+      "+input",
+    );
+    letterEditor.setSelection(from, {
+      line: from.line,
+      ch: from.ch + openTag.length + selection.length + closeTag.length,
+    });
+    focusLetterEditor();
+    return;
+  }
+
+  const textarea = getLetterTextarea();
+  if (!textarea) {
+    return;
+  }
+
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const value = textarea.value;
+  const selectedText = value.slice(start, end);
+
+  if (start === end) {
+    const insertedText = `${openTag}${closeTag}`;
+    textarea.value = value.slice(0, start) + insertedText + value.slice(end);
+    textarea.selectionStart = start + openTag.length;
+    textarea.selectionEnd = start + openTag.length;
+  } else {
+    const wrappedText = `${openTag}${selectedText}${closeTag}`;
+    textarea.value = value.slice(0, start) + wrappedText + value.slice(end);
+    textarea.selectionStart = start;
+    textarea.selectionEnd = start + wrappedText.length;
+  }
+
+  textarea.focus();
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
 
 document.addEventListener("DOMContentLoaded", function () {
+  defineMarkupEditorMode();
+  initializeLetterEditor();
   loadTemplates();
   setupVariableRowManagement();
   setupPreviewUpdates();
@@ -28,8 +183,80 @@ document.addEventListener("DOMContentLoaded", function () {
   setupMarkupToolbar();
   setupCsvActions();
   setupPrintAction();
+  setupFontFacePreview();
   schedulePdfPreviewRender();
 });
+
+function getFontFaceCssFamily(fontFace) {
+  switch (fontFace) {
+    case "times-new-roman":
+      return '"Times New Roman", Times, serif';
+    case "arial":
+      return "Arial, Helvetica, sans-serif";
+    case "calibri":
+      return 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif';
+    case "helvetica":
+      return "Helvetica, Arial, sans-serif";
+    case "courier-new":
+      return '"Courier New", Courier, monospace';
+    case "georgia":
+      return "Georgia, 'Times New Roman', serif";
+    case "garamond":
+      return "Garamond, 'Times New Roman', serif";
+    case "verdana":
+      return "Verdana, Geneva, sans-serif";
+    case "tahoma":
+      return "Tahoma, Verdana, sans-serif";
+    default:
+      return "Helvetica, Arial, sans-serif";
+  }
+}
+
+function applyFontFacePreview() {
+  const fontFaceSelect = document.getElementById("font-face");
+  if (!fontFaceSelect) {
+    return;
+  }
+
+  fontFaceSelect.style.fontFamily = getFontFaceCssFamily(fontFaceSelect.value);
+}
+
+function initializeLetterEditor() {
+  const textarea = getLetterTextarea();
+  if (!textarea || typeof window.CodeMirror === "undefined") {
+    return;
+  }
+
+  const initialValue = textarea.value;
+  letterEditor = window.CodeMirror.fromTextArea(textarea, {
+    mode: "markupEditor",
+    lineNumbers: false,
+    lineWrapping: true,
+    indentUnit: 2,
+    tabSize: 2,
+    viewportMargin: Infinity,
+    extraKeys: {
+      Tab(cm) {
+        cm.replaceSelection("  ", "end", "+input");
+      },
+    },
+  });
+
+  letterEditor.setValue(initialValue);
+  letterEditor.on("change", function () {
+    schedulePdfPreviewRender();
+  });
+}
+
+function setupFontFacePreview() {
+  const fontFaceSelect = document.getElementById("font-face");
+  if (!fontFaceSelect) {
+    return;
+  }
+
+  applyFontFacePreview();
+  fontFaceSelect.addEventListener("change", applyFontFacePreview);
+}
 
 function loadTemplates() {
   const templateSelect = document.getElementById("template");
@@ -79,7 +306,7 @@ function loadTemplate(templateName) {
       }
 
       if (template.letterContent) {
-        document.getElementById("letter").value = template.letterContent;
+        setLetterEditorValue(template.letterContent);
       }
 
       if (template.settings) {
@@ -90,6 +317,7 @@ function loadTemplate(templateName) {
         if (template.settings.fontFace) {
           document.getElementById("font-face").value =
             template.settings.fontFace;
+          applyFontFacePreview();
         }
         if (template.settings.pageSize) {
           document.getElementById("page-size").value =
@@ -127,9 +355,8 @@ function setupTemplateActions() {
 
 function setupMarkupToolbar() {
   const toolbar = document.querySelector(".markup-toolbar");
-  const letterTextarea = document.getElementById("letter");
 
-  if (!toolbar || !letterTextarea) {
+  if (!toolbar) {
     return;
   }
 
@@ -141,33 +368,10 @@ function setupMarkupToolbar() {
 
     event.preventDefault();
     wrapSelectionWithMarkup(
-      letterTextarea,
       button.getAttribute("data-open") || "",
       button.getAttribute("data-close") || "",
     );
   });
-}
-
-function wrapSelectionWithMarkup(textarea, openTag, closeTag) {
-  const start = textarea.selectionStart || 0;
-  const end = textarea.selectionEnd || 0;
-  const value = textarea.value;
-  const selectedText = value.slice(start, end);
-
-  if (start === end) {
-    const insertedText = `${openTag}${closeTag}`;
-    textarea.value = value.slice(0, start) + insertedText + value.slice(end);
-    textarea.selectionStart = start + openTag.length;
-    textarea.selectionEnd = start + openTag.length;
-  } else {
-    const wrappedText = `${openTag}${selectedText}${closeTag}`;
-    textarea.value = value.slice(0, start) + wrappedText + value.slice(end);
-    textarea.selectionStart = start;
-    textarea.selectionEnd = start + wrappedText.length;
-  }
-
-  textarea.focus();
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function setupCsvActions() {
@@ -237,7 +441,7 @@ function buildCurrentTemplateData() {
         value: row.querySelector(".variable-value")?.value || "",
       }),
     ),
-    letterContent: document.getElementById("letter").value,
+    letterContent: getLetterEditorValue(),
   };
 }
 
@@ -389,7 +593,7 @@ function loadTemplateFromData(template) {
   }
 
   if (template.letterContent) {
-    document.getElementById("letter").value = template.letterContent;
+    setLetterEditorValue(template.letterContent);
   }
 
   if (template.settings) {
@@ -398,6 +602,7 @@ function loadTemplateFromData(template) {
     }
     if (template.settings.fontFace) {
       document.getElementById("font-face").value = template.settings.fontFace;
+      applyFontFacePreview();
     }
     if (template.settings.pageSize) {
       document.getElementById("page-size").value = template.settings.pageSize;
@@ -451,7 +656,6 @@ function setupPreviewUpdates() {
     "#margin-right",
     "#margin-bottom",
     "#margin-left",
-    "#letter",
     "#template",
   ];
 
@@ -462,6 +666,13 @@ function setupPreviewUpdates() {
       element.addEventListener("change", schedulePdfPreviewRender);
     }
   });
+
+  if (!letterEditor) {
+    const letterTextarea = getLetterTextarea();
+    if (letterTextarea) {
+      letterTextarea.addEventListener("input", schedulePdfPreviewRender);
+    }
+  }
 
   document
     .getElementById("variableContainer")
@@ -531,8 +742,20 @@ function getFontFamily() {
   switch (fontFace) {
     case "times-new-roman":
       return "times";
+    case "georgia":
+      return "times";
+    case "garamond":
+      return "times";
     case "arial":
       return "helvetica";
+    case "helvetica":
+      return "helvetica";
+    case "verdana":
+      return "helvetica";
+    case "tahoma":
+      return "helvetica";
+    case "courier-new":
+      return "courier";
     case "calibri":
     default:
       return "helvetica";
@@ -881,26 +1104,55 @@ function renderFormattedText(
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const usableWidth = pageWidth - marginLeft - marginRight;
-  const paragraphSpacing = (baseFontSize / 72) * 0.45;
   const defaultLineHeight = (baseFontSize / 72) * 1.35;
-  const paragraphs = String(letterText || "").split(/\n\s*\n/);
+  const normalizedText = String(letterText || "").replace(/\r\n?/g, "\n");
+  const paragraphSeparatorPattern = /\n{2,}/g;
+  const paragraphs = [];
+  let lastIndex = 0;
+  let separatorMatch;
+
+  while (
+    (separatorMatch = paragraphSeparatorPattern.exec(normalizedText)) !== null
+  ) {
+    paragraphs.push({
+      content: normalizedText.slice(lastIndex, separatorMatch.index),
+      separatorLength: separatorMatch[0].length,
+    });
+    lastIndex = separatorMatch.index + separatorMatch[0].length;
+  }
+
+  paragraphs.push({
+    content: normalizedText.slice(lastIndex),
+    separatorLength: 0,
+  });
+
   let currentY = marginTop;
 
   paragraphs.forEach((paragraph, paragraphIndex) => {
-    const paragraphData = extractParagraphAlignment(paragraph);
-    const tokens = parseInlineMarkupTokens(paragraphData.content);
-    const lines = wrapTokensIntoLines(
-      tokens,
-      pdf,
-      usableWidth,
-      baseFontFamily,
-      baseFontSize,
-    );
+    const paragraphData = extractParagraphAlignment(paragraph.content);
+    const blockLines = String(paragraphData.content || "").split("\n");
 
-    if (lines.length === 0) {
-      currentY += defaultLineHeight;
-    } else {
-      lines.forEach((line, lineIndex) => {
+    blockLines.forEach((blockLine, lineIndex) => {
+      const tokens = parseInlineMarkupTokens(blockLine);
+      const lines = wrapTokensIntoLines(
+        tokens,
+        pdf,
+        usableWidth,
+        baseFontFamily,
+        baseFontSize,
+      );
+
+      if (lines.length === 0) {
+        if (currentY + defaultLineHeight > pageHeight - marginBottom) {
+          pdf.addPage();
+          currentY = marginTop;
+        }
+
+        currentY += defaultLineHeight;
+        return;
+      }
+
+      lines.forEach((line, wrappedLineIndex) => {
         const lineHeight =
           (Math.max(line.maxFontSize || baseFontSize, baseFontSize) / 72) *
           1.35;
@@ -919,15 +1171,20 @@ function renderFormattedText(
           usableWidth,
           baseFontFamily,
           baseFontSize,
-          lineIndex === lines.length - 1,
+          lineIndex === blockLines.length - 1 &&
+            wrappedLineIndex === lines.length - 1,
         );
 
         currentY += lineHeight;
       });
-    }
+    });
 
-    if (paragraphIndex < paragraphs.length - 1) {
-      currentY += paragraphSpacing;
+    if (
+      paragraph.separatorLength > 0 &&
+      paragraphIndex < paragraphs.length - 1
+    ) {
+      const extraBlankLines = Math.max(paragraph.separatorLength - 1, 1);
+      currentY += defaultLineHeight * extraBlankLines;
     }
   });
 }
@@ -953,7 +1210,7 @@ function buildPdfBlob(variableValues = getVariableValues()) {
     Number(document.getElementById("margin-bottom").value) || 1;
   const marginLeft = Number(document.getElementById("margin-left").value) || 1;
   const fontFamily = getFontFamily();
-  const rawText = document.getElementById("letter").value;
+  const rawText = getLetterEditorValue();
   const letterText = applyVariablesToText(rawText, mergedVariableValues);
 
   pdf.setFont(fontFamily, "normal");
@@ -1015,7 +1272,7 @@ function getPreviewStateKey() {
     marginRight: document.getElementById("margin-right").value,
     marginBottom: document.getElementById("margin-bottom").value,
     marginLeft: document.getElementById("margin-left").value,
-    letter: document.getElementById("letter").value,
+    letter: getLetterEditorValue(),
     variables: getVariableValues(),
   });
 }

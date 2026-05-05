@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bulk Letter Generator</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css"
+    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -16,9 +20,64 @@
           <h2>Settings</h2>
           <label for="font-face">Font Face:</label>
           <select id="font-face" name="font-face">
-            <option value="times-new-roman">Times New Roman</option>
-            <option value="arial">Arial</option>
-            <option value="calibri">Calibri</option>
+            <option
+              value="times-new-roman"
+              style="font-family: &quot;Times New Roman&quot;, Times, serif"
+            >
+              Times New Roman
+            </option>
+            <option
+              value="arial"
+              style="font-family: Arial, Helvetica, sans-serif"
+            >
+              Arial
+            </option>
+            <option
+              value="calibri"
+              style="
+                font-family:
+                  Calibri, Candara, Segoe, &quot;Segoe UI&quot;, Optima, Arial,
+                  sans-serif;
+              "
+            >
+              Calibri
+            </option>
+            <option
+              value="helvetica"
+              style="font-family: Helvetica, Arial, sans-serif"
+            >
+              Helvetica
+            </option>
+            <option
+              value="courier-new"
+              style="font-family: &quot;Courier New&quot;, Courier, monospace"
+            >
+              Courier New
+            </option>
+            <option
+              value="georgia"
+              style="font-family: Georgia, &quot;Times New Roman&quot;, serif"
+            >
+              Georgia
+            </option>
+            <option
+              value="garamond"
+              style="font-family: Garamond, &quot;Times New Roman&quot;, serif"
+            >
+              Garamond
+            </option>
+            <option
+              value="verdana"
+              style="font-family: Verdana, Geneva, sans-serif"
+            >
+              Verdana
+            </option>
+            <option
+              value="tahoma"
+              style="font-family: Tahoma, Verdana, Segoe, sans-serif"
+            >
+              Tahoma
+            </option>
           </select>
           <label for="font-size">Font Size:</label>
           <input
@@ -36,34 +95,42 @@
           </select>
           <label>Margins (inch):</label>
           <div class="margins-row">
-            <input
-              type="number"
-              id="margin-top"
-              name="margin-top"
-              placeholder="Top"
-              value="1"
-            />
-            <input
-              type="number"
-              id="margin-right"
-              name="margin-right"
-              placeholder="Right"
-              value="1"
-            />
-            <input
-              type="number"
-              id="margin-bottom"
-              name="margin-bottom"
-              placeholder="Bottom"
-              value="1"
-            />
-            <input
-              type="number"
-              id="margin-left"
-              name="margin-left"
-              placeholder="Left"
-              value="1"
-            />
+            <div class="margin-field">
+              <label for="margin-top" class="margin-label">Top</label>
+              <input
+                type="number"
+                id="margin-top"
+                name="margin-top"
+                value="1"
+              />
+            </div>
+            <div class="margin-field">
+              <label for="margin-right" class="margin-label">Right</label>
+              <input
+                type="number"
+                id="margin-right"
+                name="margin-right"
+                value="1"
+              />
+            </div>
+            <div class="margin-field">
+              <label for="margin-bottom" class="margin-label">Bottom</label>
+              <input
+                type="number"
+                id="margin-bottom"
+                name="margin-bottom"
+                value="1"
+              />
+            </div>
+            <div class="margin-field">
+              <label for="margin-left" class="margin-label">Left</label>
+              <input
+                type="number"
+                id="margin-left"
+                name="margin-left"
+                value="1"
+              />
+            </div>
           </div>
           <label for="template">Select Template:</label>
           <select id="template" name="template">
@@ -208,7 +275,8 @@
               </button>
             </div>
             <div class="markup-help">
-              Select text, then click a button to wrap it with markup. Use variables like [$Name].
+              Select text, then click a button to wrap it with markup. Use
+              variables like [$Name].
             </div>
             <textarea
               id="letter"
@@ -219,18 +287,21 @@
         </div>
       </div>
       <div class="preview">
-        <h2>Letter Preview</h2>
-        <button type="button" id="print-pdf" class="floating-preview-button">
-          Print PDF
-        </button>
+        <div class="preview-header">
+          <h2>Letter Preview</h2>
+          <button type="button" id="print-pdf" class="floating-preview-button">
+            Print PDF
+          </button>
+        </div>
       </div>
     </div>
-    <div class="footer">(c) 2026 | Nahid Hasan. All rights reserved.</div>
+    <div class="footer">© 2026 Nahid Hasan. All rights reserved.</div>
 
     <script
       src="https://kit.fontawesome.com/a076d05399.js"
       crossorigin="anonymous"
     ></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="app.js"></script>

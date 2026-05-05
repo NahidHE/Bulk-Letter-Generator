@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", function () {
   setupVariableRowManagement();
   setupPreviewUpdates();
   setupTemplateActions();
+  setupMarkupToolbar();
   setupCsvActions();
   setupPrintAction();
   schedulePdfPreviewRender();
@@ -122,6 +123,51 @@ function setupTemplateActions() {
   });
 
   uploadInput.addEventListener("change", handleTemplateUpload);
+}
+
+function setupMarkupToolbar() {
+  const toolbar = document.querySelector(".markup-toolbar");
+  const letterTextarea = document.getElementById("letter");
+
+  if (!toolbar || !letterTextarea) {
+    return;
+  }
+
+  toolbar.addEventListener("click", function (event) {
+    const button = event.target.closest(".markup-button");
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    wrapSelectionWithMarkup(
+      letterTextarea,
+      button.getAttribute("data-open") || "",
+      button.getAttribute("data-close") || "",
+    );
+  });
+}
+
+function wrapSelectionWithMarkup(textarea, openTag, closeTag) {
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const value = textarea.value;
+  const selectedText = value.slice(start, end);
+
+  if (start === end) {
+    const insertedText = `${openTag}${closeTag}`;
+    textarea.value = value.slice(0, start) + insertedText + value.slice(end);
+    textarea.selectionStart = start + openTag.length;
+    textarea.selectionEnd = start + openTag.length;
+  } else {
+    const wrappedText = `${openTag}${selectedText}${closeTag}`;
+    textarea.value = value.slice(0, start) + wrappedText + value.slice(end);
+    textarea.selectionStart = start;
+    textarea.selectionEnd = start + wrappedText.length;
+  }
+
+  textarea.focus();
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function setupCsvActions() {
@@ -514,11 +560,376 @@ function applyVariablesToText(text, variableValues) {
   let outputText = text || "";
 
   Object.keys(variableValues).forEach((variableName) => {
-    const pattern = new RegExp(`\\[${variableName}\\]`, "g");
+    const pattern = new RegExp(`\\[\\$${escapeRegExp(variableName)}\\]`, "g");
     outputText = outputText.replace(pattern, variableValues[variableName]);
   });
 
   return outputText;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getMergedVariableValues(variableValues = {}) {
+  return {
+    ...getVariableValues(),
+    ...variableValues,
+  };
+}
+
+function extractParagraphAlignment(paragraphText) {
+  const trimmedParagraph = paragraphText.trim();
+  const alignmentMatch = trimmedParagraph.match(
+    /^\[(center|left|right|justify)\]([\s\S]*)\[\/\1\]$/i,
+  );
+
+  if (alignmentMatch) {
+    return {
+      alignment: alignmentMatch[1].toLowerCase(),
+      content: alignmentMatch[2],
+    };
+  }
+
+  return {
+    alignment: "left",
+    content: trimmedParagraph,
+  };
+}
+
+function createTextStyleState() {
+  return {
+    bold: false,
+    italic: false,
+    underline: false,
+    large: false,
+  };
+}
+
+function cloneTextStyleState(styleState) {
+  return {
+    bold: styleState.bold,
+    italic: styleState.italic,
+    underline: styleState.underline,
+    large: styleState.large,
+  };
+}
+
+function getPdfFontStyle(styleState) {
+  if (styleState.bold && styleState.italic) {
+    return "bolditalic";
+  }
+
+  if (styleState.bold) {
+    return "bold";
+  }
+
+  if (styleState.italic) {
+    return "italic";
+  }
+
+  return "normal";
+}
+
+function getStyleFontSize(styleState, baseFontSize) {
+  return styleState.large ? baseFontSize * 1.45 : baseFontSize;
+}
+
+function parseInlineMarkupTokens(text) {
+  const tokens = [];
+  const activeTags = [];
+  const markupRegex = /\[(\/?)(b|i|u|large)\]/gi;
+  const sourceText = String(text || "");
+  let lastIndex = 0;
+  let match;
+
+  const getCurrentStyle = function () {
+    return {
+      bold: activeTags.includes("b"),
+      italic: activeTags.includes("i"),
+      underline: activeTags.includes("u"),
+      large: activeTags.includes("large"),
+    };
+  };
+
+  const pushTextSegment = function (segmentText) {
+    if (!segmentText) {
+      return;
+    }
+
+    const lineParts = segmentText.split(/(\n)/);
+
+    lineParts.forEach((part, index) => {
+      if (!part) {
+        return;
+      }
+
+      if (part === "\n") {
+        tokens.push({ type: "newline" });
+        return;
+      }
+
+      part.split(/(\s+)/).forEach((piece) => {
+        if (!piece) {
+          return;
+        }
+
+        if (/^\s+$/.test(piece)) {
+          tokens.push({
+            type: "space",
+            text: piece,
+            style: cloneTextStyleState(getCurrentStyle()),
+          });
+        } else {
+          tokens.push({
+            type: "word",
+            text: piece,
+            style: cloneTextStyleState(getCurrentStyle()),
+          });
+        }
+      });
+
+      if (index < lineParts.length - 1) {
+        tokens.push({ type: "newline" });
+      }
+    });
+  };
+
+  while ((match = markupRegex.exec(sourceText)) !== null) {
+    pushTextSegment(sourceText.slice(lastIndex, match.index));
+
+    const isClosingTag = match[1] === "/";
+    const tagName = match[2].toLowerCase();
+
+    if (isClosingTag) {
+      for (let index = activeTags.length - 1; index >= 0; index -= 1) {
+        if (activeTags[index] === tagName) {
+          activeTags.splice(index, 1);
+          break;
+        }
+      }
+    } else {
+      activeTags.push(tagName);
+    }
+
+    lastIndex = markupRegex.lastIndex;
+  }
+
+  pushTextSegment(sourceText.slice(lastIndex));
+  return tokens;
+}
+
+function measureFormattedTokenWidth(pdf, token, baseFontFamily, baseFontSize) {
+  const tokenFontSize = getStyleFontSize(token.style, baseFontSize);
+  const tokenFontStyle = getPdfFontStyle(token.style);
+
+  pdf.setFont(baseFontFamily, tokenFontStyle);
+  pdf.setFontSize(tokenFontSize);
+
+  return pdf.getTextWidth(token.text);
+}
+
+function wrapTokensIntoLines(
+  tokens,
+  pdf,
+  usableWidth,
+  baseFontFamily,
+  baseFontSize,
+) {
+  const lines = [];
+  let currentLine = [];
+  let currentWidth = 0;
+  let currentMaxFontSize = baseFontSize;
+  let currentSpaceCount = 0;
+
+  const pushLine = function () {
+    if (currentLine.length > 0) {
+      lines.push({
+        tokens: currentLine,
+        width: currentWidth,
+        maxFontSize: currentMaxFontSize,
+        spaceCount: currentSpaceCount,
+      });
+    }
+
+    currentLine = [];
+    currentWidth = 0;
+    currentMaxFontSize = baseFontSize;
+    currentSpaceCount = 0;
+  };
+
+  tokens.forEach((token) => {
+    if (token.type === "newline") {
+      pushLine();
+      return;
+    }
+
+    if (token.type === "space" && currentLine.length === 0) {
+      return;
+    }
+
+    const tokenWidth = measureFormattedTokenWidth(
+      pdf,
+      token,
+      baseFontFamily,
+      baseFontSize,
+    );
+
+    if (
+      token.type !== "space" &&
+      currentLine.length > 0 &&
+      currentWidth + tokenWidth > usableWidth
+    ) {
+      pushLine();
+    }
+
+    if (token.type === "space" && currentLine.length === 0) {
+      return;
+    }
+
+    currentLine.push({ ...token, width: tokenWidth });
+    currentWidth += tokenWidth;
+    currentMaxFontSize = Math.max(
+      currentMaxFontSize,
+      getStyleFontSize(token.style, baseFontSize),
+    );
+
+    if (token.type === "space") {
+      currentSpaceCount += 1;
+    }
+  });
+
+  if (currentLine.length > 0) {
+    lines.push({
+      tokens: currentLine,
+      width: currentWidth,
+      maxFontSize: currentMaxFontSize,
+      spaceCount: currentSpaceCount,
+    });
+  }
+
+  return lines;
+}
+
+function renderFormattedLine(
+  pdf,
+  line,
+  alignment,
+  marginLeft,
+  currentY,
+  usableWidth,
+  baseFontFamily,
+  baseFontSize,
+  isLastLineOfParagraph,
+) {
+  const isJustified =
+    alignment === "justify" && !isLastLineOfParagraph && line.spaceCount > 0;
+  const xOffset =
+    alignment === "center"
+      ? Math.max((usableWidth - line.width) / 2, 0)
+      : alignment === "right"
+        ? Math.max(usableWidth - line.width, 0)
+        : alignment === "left"
+          ? 0
+          : 0;
+  const extraSpace = isJustified
+    ? Math.max((usableWidth - line.width) / line.spaceCount, 0)
+    : 0;
+
+  let cursorX = marginLeft + xOffset;
+
+  line.tokens.forEach((token) => {
+    if (token.type === "space") {
+      cursorX += token.width + extraSpace;
+      return;
+    }
+
+    const tokenFontSize = getStyleFontSize(token.style, baseFontSize);
+    const tokenFontStyle = getPdfFontStyle(token.style);
+
+    pdf.setFont(baseFontFamily, tokenFontStyle);
+    pdf.setFontSize(tokenFontSize);
+    pdf.text(token.text, cursorX, currentY);
+
+    if (token.style.underline) {
+      // Set thicker line width for underline (1.5pt)
+      const previousLineWidth = pdf.getLineWidth ? pdf.getLineWidth() : 1;
+      pdf.setLineWidth(0.01);
+
+      // Position underline below baseline: font size proportional offset
+      const underlineY = currentY + (tokenFontSize / 72) * 0.12;
+      pdf.line(cursorX, underlineY, cursorX + token.width, underlineY);
+
+      // Restore previous line width
+      pdf.setLineWidth(previousLineWidth);
+    }
+
+    cursorX += token.width;
+  });
+}
+
+function renderFormattedText(
+  pdf,
+  letterText,
+  marginTop,
+  marginRight,
+  marginBottom,
+  marginLeft,
+  baseFontFamily,
+  baseFontSize,
+) {
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const usableWidth = pageWidth - marginLeft - marginRight;
+  const paragraphSpacing = (baseFontSize / 72) * 0.45;
+  const defaultLineHeight = (baseFontSize / 72) * 1.35;
+  const paragraphs = String(letterText || "").split(/\n\s*\n/);
+  let currentY = marginTop;
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const paragraphData = extractParagraphAlignment(paragraph);
+    const tokens = parseInlineMarkupTokens(paragraphData.content);
+    const lines = wrapTokensIntoLines(
+      tokens,
+      pdf,
+      usableWidth,
+      baseFontFamily,
+      baseFontSize,
+    );
+
+    if (lines.length === 0) {
+      currentY += defaultLineHeight;
+    } else {
+      lines.forEach((line, lineIndex) => {
+        const lineHeight =
+          (Math.max(line.maxFontSize || baseFontSize, baseFontSize) / 72) *
+          1.35;
+
+        if (currentY + lineHeight > pageHeight - marginBottom) {
+          pdf.addPage();
+          currentY = marginTop;
+        }
+
+        renderFormattedLine(
+          pdf,
+          line,
+          paragraphData.alignment,
+          marginLeft,
+          currentY,
+          usableWidth,
+          baseFontFamily,
+          baseFontSize,
+          lineIndex === lines.length - 1,
+        );
+
+        currentY += lineHeight;
+      });
+    }
+
+    if (paragraphIndex < paragraphs.length - 1) {
+      currentY += paragraphSpacing;
+    }
+  });
 }
 
 function buildPdfBlob(variableValues = getVariableValues()) {
@@ -526,6 +937,7 @@ function buildPdfBlob(variableValues = getVariableValues()) {
     return null;
   }
 
+  const mergedVariableValues = getMergedVariableValues(variableValues);
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({
     orientation: "portrait",
@@ -540,31 +952,23 @@ function buildPdfBlob(variableValues = getVariableValues()) {
   const marginBottom =
     Number(document.getElementById("margin-bottom").value) || 1;
   const marginLeft = Number(document.getElementById("margin-left").value) || 1;
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const usableWidth = pageWidth - marginLeft - marginRight;
-  const lineHeight = (fontSize / 72) * 1.35;
   const fontFamily = getFontFamily();
   const rawText = document.getElementById("letter").value;
-  const letterText = applyVariablesToText(rawText, variableValues);
-  const lines = pdf.splitTextToSize(letterText || "", usableWidth);
+  const letterText = applyVariablesToText(rawText, mergedVariableValues);
 
   pdf.setFont(fontFamily, "normal");
   pdf.setFontSize(fontSize);
 
-  let currentY = marginTop;
-
-  lines.forEach((line) => {
-    if (currentY + lineHeight > pageHeight - marginBottom) {
-      pdf.addPage();
-      pdf.setFont(fontFamily, "normal");
-      pdf.setFontSize(fontSize);
-      currentY = marginTop;
-    }
-
-    pdf.text(line, marginLeft, currentY);
-    currentY += lineHeight;
-  });
+  renderFormattedText(
+    pdf,
+    letterText,
+    marginTop,
+    marginRight,
+    marginBottom,
+    marginLeft,
+    fontFamily,
+    fontSize,
+  );
 
   return pdf.output("blob");
 }

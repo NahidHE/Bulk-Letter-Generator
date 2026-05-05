@@ -23,7 +23,19 @@
     {
       "name": "CompanyAddress",
       "value": ""
+    },
+    {
+      "name": "YourName",
+      "value": ""
+    },
+    {
+      "name": "YourTitle",
+      "value": ""
+    },
+    {
+      "name": "YourMessage",
+      "value": ""
     }
   ],
-  "letterContent": "Dear [RecipientName],\n\nI hope this letter finds you in good health and spirits.\n\n[YourMessage]\n\nThank you for your time and consideration.\n\nBest regards,\n[YourName]\n[YourTitle]"
+  "letterContent": "[center][b][large]PROFESSIONAL LETTER[/large][/b][/center]\n\nDear [$RecipientName],\n\nI hope this letter finds you in good health and spirits.\n\n[$YourMessage]\n\n[b]Key Points:[/b]\n• Company: [$CompanyName]\n• Address: [$CompanyAddress]\n\nThank you for your time and consideration. We [u]look forward[/u] to discussing this further with you.\n\nBest regards,\n\n[$YourName]\n[$YourTitle]"
 }

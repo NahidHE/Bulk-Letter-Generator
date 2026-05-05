@@ -27,7 +27,15 @@
     {
       "name": "Budget",
       "value": ""
+    },
+    {
+      "name": "YourCompany",
+      "value": ""
+    },
+    {
+      "name": "ContactPerson",
+      "value": ""
     }
   ],
-  "letterContent": "BUSINESS PROPOSAL\n\nTo: [ClientCompany]\n\nProject Scope:\n[ProjectScope]\n\nProposed Timeline:\n[Timeline]\n\nBudget:\n[Budget]\n\nWe look forward to discussing this proposal with you."
+  "letterContent": "[center][b][large]BUSINESS PROPOSAL[/large][/b][/center]\n\n[b]Proposal To:[/b] [$ClientCompany]\n\n[b][large]Project Scope[/large][/b]\n[$ProjectScope]\n\n[b][large]Proposed Timeline[/large][/b]\n[$Timeline]\n\n[b][large]Project Budget[/large][/b]\n[center][$Budget][/center]\n\n[b]About Our Company:[/b]\n[$YourCompany] is committed to delivering [u]excellence[/u] and [u]quality[/u] in every project.\n\n[i]Contact: [$ContactPerson][/i]\n\n[center][u]We look forward to discussing this proposal with you.[/u][/center]"
 }

@@ -27,7 +27,11 @@
     {
       "name": "DueDate",
       "value": ""
+    },
+    {
+      "name": "YourCompany",
+      "value": ""
     }
   ],
-  "letterContent": "INVOICE\n\nInvoice #: [InvoiceNumber]\nClient: [ClientName]\nAmount Due: [Amount]\nDue Date: [DueDate]\n\nPayment Terms: Net 30\n\nThank you for your business."
+  "letterContent": "[center][b][large]INVOICE[/large][/b][/center]\n\n[b]Invoice Details:[/b]\nInvoice #: [u][$InvoiceNumber][/u]\nClient: [$ClientName]\nCompany: [$YourCompany]\n\n[b]Payment Information:[/b]\nAmount Due: [b][$Amount][/b]\nDue Date: [$DueDate]\n\n[b]Payment Terms:[/b] Net 30\n\n[right][i]Thank you for your business![/i][/right]"
 }

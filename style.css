@@ -582,6 +582,12 @@ textarea {
 }
 
 @media (max-width: 1100px) {
+  /* Allow the page to scroll on narrow viewports (mobile/tablet) */
+  html,
+  body {
+    overflow: auto;
+    height: auto;
+  }
   .container {
     flex-direction: column;
     padding: 12px;
@@ -652,20 +658,24 @@ textarea {
   }
 
   .variable-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 8px;
+    width: 100%;
   }
 
   .delete-variable,
   .add-variable {
-    min-width: 38px;
-    padding: 8px 10px;
+    flex: 0 0 34px;
+    min-width: 34px;
+    padding: 8px 0;
   }
 
   .variable-name,
   .variable-value {
-    flex-basis: calc(50% - 4px);
-    width: calc(50% - 4px) !important;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto !important;
   }
 
   .markup-button {
@@ -691,4 +701,18 @@ textarea {
     padding: 8px 12px;
     font-size: 0.86rem;
   }
+}
+
+a{
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.8s ease;
+}
+a:visited {
+  color: var(--accent-color);
+}
+a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-color);
 }

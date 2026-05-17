@@ -1,0 +1,25 @@
+{
+  "name": "Industrial Training",
+  "settings": {
+    "fontSize": "12",
+    "fontFace": "times-new-roman",
+    "pageSize": "a4",
+    "margins": {
+      "top": 2,
+      "right": 1,
+      "bottom": 1,
+      "left": 1
+    }
+  },
+  "variables": [
+    {
+      "name": "name",
+      "value": ""
+    },
+    {
+      "name": "id",
+      "value": ""
+    }
+  ],
+  "letterContent": "\n[center][u][b][large]To Whom It May Concern[/large][/b][/u][/center]\n\n\n\n[justify]This is to certify that [b][$name][/b] (Student ID: [b][$id][/b]), currently studying in the Department of Computer Science & Engineering at Pundra University of Science & Technology, is hereby recommended for participation in a 28 days (4 weeks) Industrial Training Program relevant to the field of Computer Science & Engineering.[/justify]\n\n[justify]The purpose of this training program is to provide practical exposure and professional experience in an industrial environment, thereby contributing to academic enrichment and technical skill development.[/justify]\n\n[justify]The aforementioned candidate has demonstrated sincerity, discipline, and commitment toward academic activities. It is expected that the candidate will maintain professionalism and adhere to the rules and regulations of the hosting organization throughout the training period.[/justify]\n\n[justify]We would highly appreciate your kind consideration and necessary support in this regard.[/justify]\n\nSincerely,\n\n\n\n[b]Md. Habib Ehsanul Hoque[/b]\nAssistant Professor & Head\nDepartment of Computer Science & Engineering\nPundra University of Science & Technology\nBogura, Bangladesh\n"
+}
